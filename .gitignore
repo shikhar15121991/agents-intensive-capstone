@@ -1,4 +1,43 @@
+# Python
 __pycache__/
-.env
-credentials.json
+*.pyc
+*.pyo
+*.pyd
+*.sqlite3
+*.db
 *.log
+*.env
+credentials.json
+
+# Virtual environments
+venv/
+.env/
+*.egg-info/
+
+# Jupyter & Kaggle notebooks
+.ipynb_checkpoints/
+.kaggle/
+*.ipynb
+
+# Docker
+*.dockerignore
+Dockerfile*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Cache
+.cache/
+
+# Build artifacts
+build/
+dist/
+*.egg
+
+# VSCode
+.vscode/
+
+# Other sensitive files
+*.pem
+*.key
