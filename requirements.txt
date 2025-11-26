@@ -1,0 +1,8 @@
+google-adk
+faiss-gpu
+langchain
+crewai
+google-api-python-client
+pymupdf
+pytesseract
+streamlit
