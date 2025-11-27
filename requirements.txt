@@ -1,24 +1,5 @@
-# Core
 google-adk
-faiss-gpu
-langchain
-crewai
-
-# LLM Integration
-google-generativeai  # Gemini SDK
-openai               # Optional fallback
-
-# Document Processing
-pymupdf
-pytesseract
-
-# API Integration
-google-api-python-client
-oauth2client
-
-# UI (Optional)
-streamlit
-flask
-
-# Utilities
+google-generativeai
+faiss-cpu
+sentence-transformers
 python-dotenv
