@@ -1,86 +1,64 @@
-from typing import Any, Dict
+from google.adk.agents import SequentialAgent, LoopAgent, AgentContext
+from src.agents.extractor import ExtractorAgent
+from src.agents.priority import PriorityAgent
+from src.agents.scheduler import SchedulerAgent
+from src.agents.reflection import ReflectionAgent
+from src.agents.communication import CommunicationAgent
+from src.memory import FAISSMemory
+from src.utils import configure_gemini
 
-# Assuming these come from the Google ADK package available in your environment
-from google_adk import SequentialAgent, LoopAgent, ToolAgent, AgentContext
+class Orchestrator:
+    def __init__(self):
+        configure_gemini()
+        self.memory = FAISSMemory()
+        self.context = AgentContext()
+        self.extractor = ExtractorAgent()
+        self.priority = PriorityAgent()
+        self.scheduler = SchedulerAgent()
+        self.reflection = ReflectionAgent()
+        self.communication = CommunicationAgent()
 
+        self.workflow = SequentialAgent(
+            agents=[
+                self._extract_step,
+                self._priority_step,
+                self._schedule_step,
+                LoopAgent(agent=self._reflection_step, max_iterations=2),
+                self._communication_step
+            ]
+        )
 
-class ExtractorAgent(ToolAgent):
-    """Parses incoming content and produces a list of task dictionaries."""
+    def _extract_step(self, ctx):
+        tasks = self.extractor.run(ctx["input_text"])
+        for t in tasks:
+            self.memory.store(t)
+        ctx["tasks"] = tasks
+        return ctx
 
-    def run(self, context: AgentContext) -> Any:
-        input_data = context.get("input_data")
-        # Implement text/PDF/image parsing here
-        tasks = [
-            {"title": "Review meeting notes", "deadline": None, "metadata": {"source": "notes"}},
-            {"title": "Prepare weekly summary", "deadline": None, "metadata": {"source": "notes"}},
-        ]
-        context.set("tasks", tasks)
-        return tasks
+    def _priority_step(self, ctx):
+        context = self.memory.retrieve("prioritize tasks")
+        ctx["prioritized"] = self.priority.run(ctx["tasks"], context)
+        return ctx
 
+    def _schedule_step(self, ctx):
+        ctx["schedule"] = self.scheduler.run(ctx["prioritized"])
+        return ctx
 
-class PriorityAgent(ToolAgent):
-    """Ranks tasks by urgency, importance, and constraints using model reasoning."""
+    def _reflection_step(self, ctx):
+        ctx["schedule"] = self.reflection.run(ctx["schedule"])
+        return ctx
 
-    def run(self, context: AgentContext) -> Any:
-        tasks = context.get("tasks", [])
-        # Use Gemini for scoring and ordering
-        prioritized = tasks  # Replace with model-based prioritization
-        context.set("prioritized_tasks", prioritized)
-        return prioritized
+    def _communication_step(self, ctx):
+        ctx["final"] = self.communication.run(ctx["schedule"])
+        return ctx
 
-
-class SchedulerAgent(ToolAgent):
-    """Generates a time-bound plan based on prioritized tasks and calendar availability."""
-
-    def run(self, context: AgentContext) -> Any:
-        prioritized_tasks = context.get("prioritized_tasks", [])
-        # Create schedule blocks; integrate calendar constraints if available
-        schedule: Dict[str, Any] = {"plan": prioritized_tasks}
-        context.set("schedule", schedule)
-        return schedule
-
-
-class ReflectionAgent(LoopAgent):
-    """Iteratively refines the schedule to improve feasibility and coverage."""
-
-    def run(self, context: AgentContext) -> Any:
-        schedule = context.get("schedule", {})
-        # Apply refinement logic; e.g., resolve conflicts, adjust time windows
-        improved = schedule
-        context.set("schedule", improved)
-        return improved
-
-
-class CommunicationAgent(ToolAgent):
-    """Publishes the final plan to external systems such as Calendar or Email."""
-
-    def run(self, context: AgentContext) -> Any:
-        schedule = context.get("schedule", {})
-        # Push to Google Calendar / send notifications as needed
-        result = {"status": "synced", "details": schedule}
-        context.set("publish_result", result)
-        return result
-
-
-class Orchestrator(SequentialAgent):
-    """Root agent that coordinates the multi-agent workflow."""
-
-    def __init__(self) -> None:
-        super().__init__(agents=[
-            ExtractorAgent("extractor"),
-            PriorityAgent("priority"),
-            SchedulerAgent("scheduler"),
-            ReflectionAgent("reflection", max_loops=2),
-            CommunicationAgent("communication"),
-        ])
-
-    def run_with_input(self, input_data: Any) -> Any:
-        context = AgentContext()
-        context.set("input_data", input_data)
-        return self.run(context)
-
+    def run(self, input_text):
+        self.context["input_text"] = input_text
+        final_context = self.workflow.run(self.context)
+        return final_context["final"]
 
 if __name__ == "__main__":
+    sample_text = "Prepare Kaggle notebook, write README, build Streamlit UI, test FAISS memory."
     orchestrator = Orchestrator()
-    output = orchestrator.run_with_input("Sample: Meeting notes PDF")
-    print(output)
+    result = orchestrator.run(sample_text)
+    print(result)
